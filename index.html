@@ -1,0 +1,238 @@
+<canvas id="screen" width="800" height="800"></canvas>
+<style>
+    body {
+        background-color: #000;
+        margin: 0;
+    }
+    #screen {
+        margin: auto;
+        display: block;
+        image-rendering: pixelated;
+    }
+</style>
+<script>
+
+let distance = (pointA, pointB, radius) => ((((pointA.x - radius - pointB.x) ** 2) + ((pointA.y - radius - pointB.y) ** 2)) ** 0.5);
+let vecLength = (vector) => ((vector.x ** 2) + (vector.y ** 2)) ** 0.5;
+let normalize = (vector) => vector.scale(1 / vecLength(vector));
+
+let mesh = [];
+cols = 50;
+let sizeOffset = 1.2;
+rows = Math.floor(cols / sizeOffset);
+
+for (let i = 0; i < rows; ++i) {
+    let inner = [];
+    for (let j = 0; j < cols; ++j) {
+        if (i == 0) {
+            inner.push(!(j % 7));
+        } else {
+            inner.push(0);
+        }
+    }
+    mesh.push(inner);
+}
+
+class Vec2 {
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+
+    add(otherVector) {
+        return new Vec2(this.x + otherVector.x, this.y + otherVector.y);
+    }
+
+    subtract(otherVector) {
+        return new Vec2(this.x - otherVector.x, this.y - otherVector.y);
+    }
+
+    scale(number) {
+        return new Vec2(this.x * number, this.y * number);
+    }
+}
+
+class Point {
+    constructor(position) {
+        this.position = position;
+        this.prevPosition = this.position;
+        this.locked;
+        this.active;
+    }
+}
+
+class Stick {
+    constructor(pointA, pointB) {
+        this.pointA = pointA;
+        this.pointB = pointB;
+        this.length = vecLength(this.pointA.position.subtract(this.pointB.position));
+    }
+}
+
+function line(ctx, pointA, pointB, width, color, offset) {
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(pointA.position.x - offset, pointA.position.y - offset);
+    ctx.lineTo(pointB.position.x - offset, pointB.position.y - offset);
+    ctx.stroke();
+}
+
+function lineSegmentsIntersect(a1, a2, b1, b2){
+    let d = (b2.x - b1.x) * (a1.y - a2.y) - (a1.x - a2.x) * (b2.y - b1.y);
+    if (d == 0) {
+        return false;
+    }
+    let t = ((b1.y - b2.y) * (a1.x - b1.x) + (b2.x - b1.x) * (a1.y - b1.y)) / d;
+    let u = ((a1.y - a2.y) * (a1.x - b1.x) + (a2.x - a1.x) * (a1.y - b1.y)) / d;
+
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+function cut(start, end) {
+    for (let i = sticks.length - 1; i >= 0; i--) {
+        if (lineSegmentsIntersect(start, end, sticks[i].pointA.position, sticks[i].pointB.position)) {
+            sticks.splice(i, 1);
+        }
+    }
+}
+
+const canvas = document.getElementById("screen");
+const ctx = canvas.getContext("2d");
+
+const points = [];
+const sticks = [];
+let offset = new Vec2(canvas.width / cols, canvas.height / rows / sizeOffset);
+
+canvas.addEventListener("contextmenu", event => event.preventDefault());
+
+const modes = ["SIMULATION", "STATIC"];
+let mode = "STATIC";
+let i = 1;
+
+document.addEventListener("keydown", event => {
+    if (event.code == "Space") {
+        i++;
+        mode = modes[i % modes.length];
+    }
+    if (event.code == "ArrowLeft") {
+        stiffness = Math.max(--stiffness, 0);
+    }
+    if (event.code == "ArrowRight") {
+        stiffness++;
+    }
+});
+
+let stickPoints = [];
+
+let mouse;
+let cutPosOld = new Vec2();
+canvas.addEventListener("mousemove", event => {
+    mouse = new Vec2(event.offsetX, event.offsetY);
+
+    if (mode == "SIMULATION" && event.buttons == 1) {
+        cut(cutPosOld, new Vec2(event.offsetX, event.offsetY));
+    }
+
+    cutPosOld = new Vec2(event.offsetX, event.offsetY);
+});
+
+const lockedPoints = [];
+function createMesh() {
+    for (let j = 0; j < mesh.length; ++j) {
+        for (let i = 0; i < mesh[j].length; ++i) {
+            const point = new Point(new Vec2(i * offset.x + offset.x / 2, j * offset.y + offset.y * 2));
+            if (mesh[j][i]) {
+                point.locked = true;
+            }
+            points.push(point);
+            if (i >= 1) {
+                sticks.push(new Stick(points[(j * mesh[j].length) + i], points[(j * mesh[j].length) + (i - 1)]));
+            }
+            if (j >= 1) {
+                sticks.push(new Stick(points[(j * mesh[j].length) + i], points[((j - 1) * mesh[j - 1].length) + i]));
+            }
+        }
+    }
+
+    for (let i = 0; i < points.length; ++i) {
+        if (points[i].locked) {
+            lockedPoints.push(points[i]);
+        }
+    }
+}
+
+const gravity = 9.8;
+function simulate(deltaTime, stiffness) {
+    for (let i = 0; i < points.length; ++i) {
+        if (!points[i].locked) {
+            let positionBeforeUpdate = points[i].position;
+            points[i].position = points[i].position.add(points[i].position.subtract(points[i].prevPosition));
+            points[i].position = points[i].position.add((new Vec2(0, 1)).scale(gravity * deltaTime));
+            points[i].prevPosition = positionBeforeUpdate;
+        }
+    }
+    for (let j = 0; j < stiffness; ++j) {
+        for (let i = 0; i < sticks.length; ++i) {
+            let stickCenter = (sticks[i].pointA.position.add(sticks[i].pointB.position)).scale(0.5);
+            let stickDir = normalize(sticks[i].pointA.position.subtract(sticks[i].pointB.position));
+            if (!sticks[i].pointA.locked) {
+                sticks[i].pointA.position = stickCenter.add(stickDir.scale(sticks[i].length / 2));
+            }
+            if (!sticks[i].pointB.locked) {
+                sticks[i].pointB.position = stickCenter.subtract(stickDir.scale(sticks[i].length / 2));
+            }
+        }
+    }
+}
+
+createMesh();
+
+let lastTime = 0;
+const deltaTime = 1/60;
+let accumulatedTime = 0;
+let stiffness = 6;
+function update(time) {
+
+    accumulatedTime += (time - lastTime) / 1000;
+
+    while(accumulatedTime > deltaTime) {
+        ctx.fillStyle = "#ddd";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        let radius = 2;
+        for (let i = 0; i < sticks.length; ++i) {
+            line(ctx, sticks[i].pointA, sticks[i].pointB, 1, "#000", radius / 2);
+        }
+
+        for (let i = 0; i < lockedPoints.length; ++i) {
+            ctx.fillStyle = "#d22";
+            ctx.beginPath();
+            ctx.arc(lockedPoints[i].position.x - (radius / 2), lockedPoints[i].position.y - (radius / 2), radius, 0, Math.PI * 2, true);
+            ctx.fill();
+        }
+
+        if (mode == "SIMULATION") {
+            simulate(deltaTime, stiffness);
+        }
+
+        ctx.fillStyle = "#000";
+        let size = 10;
+        ctx.font = `${size}px monospace`;
+        ctx.textAlign = "left";
+        ctx.fillText(`${mode}, Stiffness: ${stiffness}, DeltaTime: ${Math.floor(accumulatedTime * 100000)/100} ms`, 2, size);
+    
+        ctx.textAlign = "center";
+        ctx.fillText(`Space bar -> Play/Pause`, canvas.width / 2, canvas.height - 30);
+        ctx.fillText(`Left Mouse -> Cut Mesh`, canvas.width / 2, canvas.height - 20);
+        ctx.fillText(`Arrow Left/Right -> -/+ Stiffness`, canvas.width / 2, canvas.height - 10);
+
+        accumulatedTime -= deltaTime;
+    }
+
+    lastTime = time;
+
+    requestAnimationFrame(update)
+} update(0);
+
+</script>
