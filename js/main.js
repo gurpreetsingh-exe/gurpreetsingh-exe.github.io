@@ -30,8 +30,10 @@ void main() {
 const main = () => {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    const timer = new Timer();
     const engine = new Engine();
-    engine.update();
+    timer.update = engine.update.bind(engine);
+    timer.start();
     window.addEventListener("resize", () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;

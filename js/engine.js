@@ -4,24 +4,15 @@ class Engine {
     #projection;
     #model;
     #rotation
-    #last_time;
 
     constructor() {
         this.#shader = new Shader(vert, frag);
         this.#projection = mat4.create();
         this.#model = mat4.create();
         this.#rotation = 0.0;
-        this.#last_time = 0;
 
-        const positions = [
-            -1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1,
-            -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1,
-        ];
-        const indices = [
-            1, 2, 0, 2, 3, 0, 6, 2, 1, 1, 5, 6, 6, 5, 4, 4, 7, 6,
-            6, 3, 2, 7, 3, 6, 3, 7, 0, 7, 4, 0, 5, 1, 0, 4, 5, 0
-        ];
-        this.#batch = new Batch(this.#shader, positions, indices);
+        const mesh = new IcoSphere(4, 1.5);
+        this.#batch = new Batch(this.#shader, mesh.vertices, mesh.indices);
 
         this.update_projection();
         this.#update_model();
@@ -43,16 +34,13 @@ class Engine {
         mat4.rotate(this.#model, this.#model, this.#rotation * 0.7, [0, 1, 0]);
     }
 
-    update(time = 0) {
+    update(delta_time) {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
-
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        let delta_time = time - this.#last_time;
-        this.#rotation += (delta_time * 0.001) % 360;
+        this.#rotation += delta_time * 0.1 % 360;
 
         this.#update_model();
 
@@ -62,7 +50,5 @@ class Engine {
 
         gl.viewport(0, 0, canvas.width, canvas.height);
         this.#batch.draw();
-        requestAnimationFrame(t => this.update(t));
-        this.#last_time = time;
     }
 }
