@@ -3,19 +3,29 @@ class Engine {
     #batch;
     #projection;
     #model;
-    #rotation
+    #rotation;
+    #quad;
+    #framebuffer;
+    #screen;
 
     constructor() {
         this.#shader = new Shader(vert, frag);
         this.#projection = mat4.create();
         this.#model = mat4.create();
         this.#rotation = 0.0;
+        this.#framebuffer = new FrameBuffer([
+            new AttachmentSpec(gl.TEXTURE_2D, gl.RGBA8),
+            new AttachmentSpec(gl.TEXTURE_2D, gl.DEPTH24_STENCIL8),
+        ], canvas.width, canvas.height);
+        this.#screen = new Shader(tri, texture_draw);
 
         const mesh = new IcoSphere(4, 1.5);
         this.#batch = new Batch(this.#shader, mesh.vertices, mesh.indices);
 
         this.update_projection();
         this.#update_model();
+        const quad = new Quad();
+        this.#quad = new Batch(this.#screen, quad.vertices, quad.indices);
     }
 
     update_projection() {
@@ -35,20 +45,25 @@ class Engine {
     }
 
     update(delta_time) {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.clearDepth(1.0);
-        gl.enable(gl.DEPTH_TEST);
-        gl.depthFunc(gl.LEQUAL);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         this.#rotation += delta_time * 0.1 % 360;
-
         this.#update_model();
 
+        this.#framebuffer.bind();
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         this.#shader.bind();
         this.#shader.upload_mat4("projection", this.#projection);
         this.#shader.upload_mat4("model", this.#model);
-
-        gl.viewport(0, 0, canvas.width, canvas.height);
         this.#batch.draw();
+        this.#framebuffer.unbind();
+        gl.disable(gl.DEPTH_TEST);
+
+        gl.enable(gl.BLEND);
+        this.#screen.bind();
+        gl.bindTexture(gl.TEXTURE_2D, this.#framebuffer.get_texture(0));
+        this.#quad.draw();
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.disable(gl.BLEND);
     }
 }

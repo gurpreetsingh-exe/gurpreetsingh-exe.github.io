@@ -48,4 +48,8 @@ class Shader {
     upload_mat4(name, mat4) {
         gl.uniformMatrix4fv(this.#get_uniform_location(name), false, mat4);
     }
+
+    upload_sampler(name, sampler) {
+        gl.uniform1i(this.#get_uniform_location(name), sampler);
+    }
 }
