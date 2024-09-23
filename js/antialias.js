@@ -2,7 +2,14 @@ const texture_draw = `#version 300 es
 precision mediump float;
 
 in vec2 uv;
+in vec3 direction;
 uniform sampler2D u_texture;
+uniform sampler2D u_depth;
+uniform mat4 model;
+uniform mat4 projection;
+uniform mat4 view;
+uniform vec3 ray_origin;
+uniform vec4 viewport;
 
 #define g_mulReduceReciprocal 16.0f
 #define g_minReduceReciprocal 32.0f
@@ -72,9 +79,73 @@ vec3 fxaa(sampler2D tex, vec2 texel_step) {
   return color;
 }
 
+// vec2 ray_sphere_intersection(vec3 origin, vec3 direction, vec4 sphere) {
+//     vec3 center = sphere.xyz;
+//     float radius = sphere.w;
+//     vec3 v = origin - center;
+
+//     float a = 1.0f;
+//     float b = 2.0f * dot(v, direction);
+//     float c = dot(v, v) - radius * radius;
+//     float d = b * b - 4.0f * a * c;
+
+//     if (d > 0.0f) {
+//         float s = sqrt(d);
+//         float near = max(0.0f, (-b - s) / (2.0f * a));
+//         float far = (-b + s) / (2.0f * a);
+
+//         if (far >= 0.0f) {
+//             return vec2(near, far - near);
+//         }
+//     }
+
+//     return vec2(10000.0f, 0.0f);
+// }
+
+vec2 ray_sphere_intersection(vec3 r0, vec3 rd, vec4 sphere) {
+    vec3 s0 = sphere.xyz;
+    float sr = sphere.w;
+    float a = dot(rd, rd);
+    vec3 s0_r0 = r0 - s0;
+    float b = 2.0 * dot(rd, s0_r0);
+    float c = dot(s0_r0, s0_r0) - (sr * sr);
+    float disc = b * b - 4.0 * a * c;
+    if (disc < 0.0) {
+        return vec2(-1.0, -1.0);
+    } else {
+        return vec2(-b - sqrt(disc), -b + sqrt(disc)) / (2.0 * a);
+    }
+}
+
+float depth_fix_range(float depth) {
+    return ((gl_DepthRange.diff * depth) + gl_DepthRange.near + gl_DepthRange.far) / 2.0;
+}
+
+float get_depth(float depth) {
+    return (2.0 * depth - gl_DepthRange.near - gl_DepthRange.far) /
+        (gl_DepthRange.far - gl_DepthRange.near);
+}
+
 void main() {
-  ivec2 size_ = textureSize(u_texture, 0);
-  vec2 size = vec2(size_.x, size_.y);
-  fragColor = vec4(fxaa(u_texture, 1.0f / size), 1.0f);
+    vec4 ndc;
+    ndc.xy = ((2.0 * gl_FragCoord.xy) - (2.0 * viewport.xy)) / (viewport.zw) - 1.0f;
+    ndc.z = (2.0 * gl_FragCoord.z - gl_DepthRange.near - gl_DepthRange.far) /
+        (gl_DepthRange.far - gl_DepthRange.near);
+    ndc.w = 1.0;
+
+    vec4 clip_pos = ndc / gl_FragCoord.w;
+    vec3 direction = vec3(inverse(view) * inverse(projection) * clip_pos);
+    float depth = texture(u_depth, uv).x;
+
+    vec2 hit = ray_sphere_intersection(ray_origin, normalize(direction),
+        vec4(0.0f, 0.0f, 0.0f, 0.05f));
+    float t = hit.y;
+    float new_depth = min(depth - hit.x, hit.y);
+    gl_FragDepth = new_depth;
+
+    ivec2 size_ = textureSize(u_texture, 0);
+    vec2 size = vec2(size_.x, size_.y);
+    fragColor = vec4(fxaa(u_texture, 1.0f / size), 1.0f);
+    // fragColor = vec4(vec3(ray_origin + direction * t), 1.0);
 }
 `;

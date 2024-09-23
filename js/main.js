@@ -1,13 +1,15 @@
 const canvas = document.getElementById("screen");
 /** @type {WebGL2RenderingContext} */
-const gl = canvas.getContext("webgl2", { antialias: false });
+const gl = canvas.getContext("webgl2", { antialias: true });
 
 const tri = `#version 300 es
 in vec3 position;
 out vec2 uv;
+out vec3 direction;
 
 void main(void) {
     uv = position.xy * 0.5 + 0.5;
+    direction = position;
     gl_Position = vec4(position, 1);
 }
 `;

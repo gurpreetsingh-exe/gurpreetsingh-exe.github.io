@@ -45,8 +45,20 @@ class Shader {
         return this.#get_uniform_location(name);
     }
 
-    upload_mat4(name, mat4) {
-        gl.uniformMatrix4fv(this.#get_uniform_location(name), false, mat4);
+    upload_mat4(name, mat) {
+        gl.uniformMatrix4fv(this.#get_uniform_location(name), false, mat);
+    }
+
+    upload_float(name, f) {
+        gl.uniform1f(this.#get_uniform_location(name), f);
+    }
+
+    upload_vec3(name, vec) {
+        gl.uniform3f(this.#get_uniform_location(name), ...vec);
+    }
+
+    upload_vec4(name, vec) {
+        gl.uniform4f(this.#get_uniform_location(name), ...vec);
     }
 
     upload_sampler(name, sampler) {

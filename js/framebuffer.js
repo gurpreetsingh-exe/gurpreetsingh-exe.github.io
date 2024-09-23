@@ -65,4 +65,11 @@ class FrameBuffer {
     }
 
     get_texture = (i) => this.#color_attachments[i];
+
+    get_depth() {
+        if (this.#depth_attachment) {
+            return this.#depth_attachment;
+        }
+        console.error("depth attachment not found");
+    }
 }

@@ -2,12 +2,13 @@ const vert = `#version 300 es
 in vec3 position;
 uniform mat4 model;
 uniform mat4 projection;
+uniform mat4 view;
 
 out vec3 color;
 
 void main() {
     color = position;
-    gl_Position = projection * model * vec4(position, 1);
+    gl_Position = projection * view * model * vec4(position, 1);
 }
 `;
 
