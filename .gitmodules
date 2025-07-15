@@ -1,0 +1,3 @@
+[submodule "demos/switch"]
+	path = demos/switch
+	url = https://github.com/gurpreetsingh-exe/switch.git
